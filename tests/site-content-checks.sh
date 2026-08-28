@@ -3,6 +3,7 @@ set -eu
 
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 article="$root/articles/from-ai-capability-to-consumer-habit.html"
+article_two="$root/articles/shipping-reliable-ai-features-in-consumer-mobile-apps.html"
 
 test -f "$article"
 grep -q '<link rel="canonical" href="https://asimcanyagiz.github.io/articles/from-ai-capability-to-consumer-habit.html">' "$article"
@@ -11,6 +12,13 @@ grep -q 'From AI Capability to Consumer Habit' "$article"
 grep -q 'articles/from-ai-capability-to-consumer-habit.html' "$root/index.html"
 test -f "$root/sitemap.xml"
 grep -q 'articles/from-ai-capability-to-consumer-habit.html' "$root/sitemap.xml"
+
+test -f "$article_two"
+grep -q '<link rel="canonical" href="https://asimcanyagiz.github.io/articles/shipping-reliable-ai-features-in-consumer-mobile-apps.html">' "$article_two"
+grep -q '"@type": "Article"' "$article_two"
+grep -q 'Shipping Reliable AI Features in Consumer Mobile Apps' "$article_two"
+grep -q 'articles/shipping-reliable-ai-features-in-consumer-mobile-apps.html' "$root/index.html"
+grep -q 'articles/shipping-reliable-ai-features-in-consumer-mobile-apps.html' "$root/sitemap.xml"
 
 grep -q 'id="contact"' "$root/index.html"
 grep -q 'action="https://formspree.io/f/mwlkkwnz"' "$root/index.html"
@@ -36,6 +44,11 @@ fi
 
 if grep -Eqi '297[,\.]?859|294[,\.]?824|282[,\.]?145|revenue|income|salary|huseyinaliyagiz|fatmagul' "$article"; then
   echo "confidential or financial language found in public article" >&2
+  exit 1
+fi
+
+if grep -Eqi '297[,\.]?859|294[,\.]?824|282[,\.]?145|revenue|income|salary|huseyinaliyagiz|fatmagul|zodya' "$article_two"; then
+  echo "confidential, product-specific or financial language found in second public article" >&2
   exit 1
 fi
 

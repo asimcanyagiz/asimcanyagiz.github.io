@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shipping Reliable AI Features in Consumer Mobile Apps — Asım Can Yağız</title>
+  <meta name="description" content="A production-minded architecture for reliable AI features in consumer mobile apps: contracts, failure handling, observability, evaluation and controlled rollout.">
+  <meta name="author" content="Asım Can Yağız">
+  <meta name="theme-color" content="#0b0d10">
+  <meta property="og:title" content="Shipping Reliable AI Features in Consumer Mobile Apps">
+  <meta property="og:description" content="A practical production architecture for AI-powered mobile features.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://asimcanyagiz.github.io/articles/shipping-reliable-ai-features-in-consumer-mobile-apps.html">
+  <meta property="og:image" content="https://asimcanyagiz.github.io/assets/img/profile-img.jpg">
+  <meta property="article:published_time" content="2026-08-28">
+  <link rel="canonical" href="https://asimcanyagiz.github.io/articles/shipping-reliable-ai-features-in-consumer-mobile-apps.html">
+  <link rel="icon" href="../assets/img/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <link rel="stylesheet" href="../assets/css/article.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Shipping Reliable AI Features in Consumer Mobile Apps",
+    "description": "A production-minded architecture for reliable AI features in consumer mobile apps.",
+    "datePublished": "2026-08-28",
+    "dateModified": "2026-08-28",
+    "author": {"@type": "Person", "name": "Asım Can Yağız", "url": "https://asimcanyagiz.github.io/"},
+    "publisher": {"@type": "Person", "name": "Asım Can Yağız"},
+    "mainEntityOfPage": "https://asimcanyagiz.github.io/articles/shipping-reliable-ai-features-in-consumer-mobile-apps.html"
+  }
+  </script>
+</head>
+<body>
+  <header class="site-header article-header">
+    <a class="wordmark" href="../index.html" aria-label="Asım Can Yağız home">ACY<span>.</span></a>
+    <nav aria-label="Article navigation"><a href="../index.html#writing">All writing</a></nav>
+    <a class="header-cta" href="https://x.com/canbuilds" target="_blank" rel="noreferrer">Build notes ↗</a>
+  </header>
+
+  <main>
+    <article>
+      <header class="article-hero">
+        <p class="eyebrow">Mobile engineering · AI reliability</p>
+        <h1>Shipping reliable AI features in <em>consumer mobile apps.</em></h1>
+        <p class="article-deck">A production AI feature is not a model call inside a polished screen. It is a controlled system that protects the user when inputs, networks, providers and outputs behave unpredictably.</p>
+        <div class="article-meta"><span>By Asım Can Yağız</span><span>28 August 2026</span><span>9 min read</span></div>
+      </header>
+
+      <div class="article-layout">
+        <aside class="article-aside">
+          <p class="aside-label">The architecture</p>
+          <ol>
+            <li><a href="#contract">Define the contract</a></li>
+            <li><a href="#states">Model every state</a></li>
+            <li><a href="#boundary">Keep control at the boundary</a></li>
+            <li><a href="#observe">Observe without oversharing</a></li>
+            <li><a href="#evaluate">Evaluate the full system</a></li>
+            <li><a href="#rollout">Roll out progressively</a></li>
+          </ol>
+        </aside>
+
+        <div class="article-body">
+          <p class="lead">AI prototypes are usually built around the happy path: collect an input, send it to a model and render the response. Consumer mobile software lives everywhere else.</p>
+          <p>It runs on unstable networks and older devices. Users interrupt requests, submit unexpected inputs, change languages and return after an app version has changed. Providers time out. Structured output becomes almost structured. Safety policies reject a request that worked yesterday. A release that improves average quality can quietly increase latency or cost.</p>
+          <p>The engineering task is therefore not to make a model appear reliable. It is to build a product boundary that contains uncertainty. The following is the architecture I use to reason about that boundary.</p>
+
+          <h2 id="contract">1. Define a product contract before choosing the model</h2>
+          <p>A feature needs a contract that the product can enforce. It should state the accepted inputs, the useful output, the maximum wait a user should tolerate, the data that may be retained, the failure behaviours and the actions the interface will allow next.</p>
+          <p>This contract must be expressed in product terms. “Return valid JSON” is an implementation requirement. “Give the user three editable suggestions without losing their original input” is a product contract.</p>
+          <div class="principle"><span>Principle 01</span><p>The mobile experience owns the promise. The model is one replaceable component used to fulfil it.</p></div>
+          <p>Once the contract is explicit, model selection becomes an engineering decision. A smaller model may be sufficient for classification. A slower model may be justified for a high-value creative task. A deterministic local rule may be safer than generation. The system can route by task instead of forcing one provider to solve every problem.</p>
+
+          <h2 id="states">2. Model every state the user can encounter</h2>
+          <p>Loading and error are not enough. A robust AI flow normally needs distinct states for validation, queued work, generation, partial progress, completion, recoverable failure, policy refusal, connectivity loss and cancellation.</p>
+          <p>Those distinctions matter because the next useful action differs:</p>
+          <ul>
+            <li>An invalid input needs precise guidance before any request is sent.</li>
+            <li>A timeout should preserve the input and offer a safe retry.</li>
+            <li>A policy refusal needs an explanation and a route to an acceptable request.</li>
+            <li>A parsing failure may be recoverable server-side without asking the user to start again.</li>
+            <li>A cancelled request must not later overwrite a newer result.</li>
+          </ul>
+          <p>On the client, I prefer one explicit state machine over several loosely related booleans. It prevents impossible combinations such as showing a completed result while a stale request still controls the loading state. Each transition can be tested, observed and connected to one interface behaviour.</p>
+
+          <h2 id="boundary">3. Keep provider control behind a server boundary</h2>
+          <p>A mobile client should not be responsible for provider credentials, prompt assembly, routing rules or unrestricted model parameters. Those concerns belong behind a controlled service boundary.</p>
+          <p>The boundary can validate authentication and input size, attach the correct prompt version, select a model, enforce timeouts, apply rate limits, validate output and return a stable application response. This keeps provider changes from becoming mandatory client releases and reduces the number of behaviours an old app version must understand.</p>
+          <div class="system-map" aria-label="Reliable AI feature request flow">
+            <span>Mobile state</span><i>→</i><span>Stable API</span><i>→</i><span>Model route</span><i>→</i><span>Validation</span><i>→</i><span>Typed result</span>
+          </div>
+          <p>Every request should carry an idempotency key when repeating it could duplicate a paid or visible action. Every response should use a versioned schema. Unknown fields should be tolerated where possible; missing required meaning should fail safely. The client should never assume that generated text is structurally valid merely because the provider returned success.</p>
+
+          <h2 id="observe">4. Build observability without collecting the conversation</h2>
+          <p>Reliable operation requires enough information to reconstruct what happened. It does not require storing every private input and output.</p>
+          <p>Useful operational fields include a request identifier, app version, feature version, prompt version, model route, locale, duration, retry count, validation result, fallback path and a privacy-safe outcome category. Together, these allow a team to answer whether a regression is tied to one release, language, provider or configuration.</p>
+          <p>Raw content should be minimised, redacted or avoided according to the feature’s needs. Debug convenience is not a sufficient reason to create a permanent dataset of sensitive user material. If examples are retained for evaluation, consent, access, retention and deletion rules need to be designed as part of the system.</p>
+          <p>Client and server events should share the same request identifier. Otherwise a mobile timeout and a server completion look like unrelated facts, making it difficult to find duplicate work, stale results and provider latency hidden behind a generic error screen.</p>
+
+          <h2 id="evaluate">5. Evaluate the product system, not only the answer</h2>
+          <p>Model evaluation often focuses on output quality. Production evaluation needs at least four layers:</p>
+          <table>
+            <thead><tr><th>Layer</th><th>What to test</th><th>Failure it catches</th></tr></thead>
+            <tbody>
+              <tr><td>Contract</td><td>Schema, boundaries, refusals and unsafe inputs</td><td>Invalid responses reaching the interface</td></tr>
+              <tr><td>Behaviour</td><td>Known examples across languages and use cases</td><td>Quality regressions hidden by averages</td></tr>
+              <tr><td>Journey</td><td>Timeout, retry, cancellation and restoration</td><td>Broken states around a valid answer</td></tr>
+              <tr><td>Operation</td><td>Latency, fallback, error rate and resource use</td><td>A quality gain that makes the feature impractical</td></tr>
+            </tbody>
+          </table>
+          <p>A compact evaluation set should include normal examples, edge cases and previously observed failures. It should run when prompts, models, tools, schemas or safety logic change. Exact string matching is rarely sufficient, but neither is a vague model-based score. The best evaluation combines deterministic assertions for the contract with structured review for semantic quality.</p>
+          <p>The mobile flow also needs behavioural tests. Given a request that times out, when the user retries, then the original input should remain and only the latest result should render. Given an old cached response, when the schema is no longer supported, then the app should discard it safely rather than crash. These are product guarantees, not model benchmarks.</p>
+
+          <h2 id="rollout">6. Treat prompts and models as production releases</h2>
+          <p>A prompt change can alter user-visible behaviour as much as an application release. It needs an owner, a version, an evaluation result, a rollout plan and a rollback path.</p>
+          <p>I prefer progressive exposure: internal testing, a small production cohort, monitored expansion and automatic or manual rollback thresholds. The exact percentages matter less than the ability to compare the new configuration against a stable baseline.</p>
+          <p>Rollout metrics should include more than provider success. Watch end-to-end completion, latency distribution, retries, user corrections, saves, reports and return behaviour. A response can be technically successful while creating more work for the user.</p>
+          <div class="principle"><span>Principle 06</span><p>If a remote configuration can change the experience instantly, it deserves the same discipline as code that ships through a store.</p></div>
+
+          <h2>A practical production gate</h2>
+          <p>Before exposing an AI feature broadly, I want the team to answer:</p>
+          <ul class="checklist">
+            <li>Is the user-facing contract explicit and testable?</li>
+            <li>Does the interface represent timeout, refusal, retry and cancellation correctly?</li>
+            <li>Can the provider or model change without breaking old clients?</li>
+            <li>Are outputs validated before they reach product state?</li>
+            <li>Can a request be traced across client and server without storing unnecessary content?</li>
+            <li>Does the evaluation set include real edge cases and previous failures?</li>
+            <li>Can the configuration be rolled back independently of an app release?</li>
+            <li>Do we measure useful completion rather than generation alone?</li>
+          </ul>
+
+          <h2>Reliability is the feature users remember</h2>
+          <p>Users do not separate the model from the rest of the product. They experience one system. When a request disappears, a retry charges twice or a confident answer breaks the next screen, the distinction between provider and application architecture is irrelevant to them.</p>
+          <p>The durable engineering advantage is a controlled boundary around probabilistic capability: explicit contracts, complete states, stable interfaces, privacy-aware observability, layered evaluation and reversible rollout. That system turns an impressive AI response into a mobile feature people can trust repeatedly.</p>
+
+          <footer class="article-author">
+            <p class="eyebrow">About the author</p>
+            <h2>Asım Can Yağız</h2>
+            <p>Founder of App Skies. I build AI-powered consumer mobile products and the engineering, growth, and operating systems behind them.</p>
+            <div><a href="https://x.com/canbuilds" target="_blank" rel="noreferrer">X ↗</a><a href="https://www.linkedin.com/in/asimcanyagiz/" target="_blank" rel="noreferrer">LinkedIn ↗</a><a href="https://github.com/asimcanyagiz" target="_blank" rel="noreferrer">GitHub ↗</a></div>
+          </footer>
+        </div>
+      </div>
+    </article>
+  </main>
+  <footer><p>© 2026 Asım Can Yağız</p><p><a href="../index.html">Back home ↑</a></p></footer>
+</body>
+</html>
