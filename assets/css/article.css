@@ -26,7 +26,7 @@
 .checklist { list-style: none; padding: 0; }
 .checklist li { border-top: 1px solid var(--ink); padding: .9rem 0 .9rem 2rem; position: relative; }
 .checklist li::before { content: "□"; left: 0; position: absolute; }
-.article-author { background: var(--paper-2); border-top: 1px solid var(--ink); margin-top: 6rem; padding: 2.5rem; }
+.article-author { align-items: initial; background: var(--paper-2); color: var(--ink); display: block; font-family: var(--sans); font-size: inherit; margin-top: 6rem; padding: 2.5rem; text-transform: none; }
 .article-author h2 { font-size: 2rem; margin: 0 0 1rem; }
 .article-author div { display: flex; flex-wrap: wrap; gap: 1.5rem; }
 .article-author a { border-bottom: 1px solid var(--ink); font-family: var(--mono); font-size: .72rem; text-transform: uppercase; }

@@ -21,6 +21,8 @@ grep -q 'name="_gotcha"' "$root/index.html"
 grep -q 'id="form-status"' "$root/index.html"
 grep -q 'Your details are used only to reply' "$root/index.html"
 grep -q 'location.hash' "$root/assets/js/main.js"
+grep -Eq '\.article-author[^}]*color: var\(--ink\)' "$root/assets/css/article.css"
+grep -Eq '\.article-author[^}]*display: block' "$root/assets/css/article.css"
 
 if grep -Eqi 'mailto:|meycasim@gmail\.com' "$root/index.html"; then
   echo "direct email address found in public homepage" >&2
