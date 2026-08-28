@@ -68,8 +68,8 @@ button { font: inherit; }
 .button-quiet:hover { background: white; }
 
 .hero-visual { align-self: center; justify-self: end; margin-left: -3vw; max-width: 490px; position: relative; width: 100%; }
-.portrait-frame { aspect-ratio: 1 / 1; background: #050608; border: 1px solid var(--ink); overflow: hidden; transform: rotate(2.5deg); }
-.portrait-frame img { display: block; height: 100%; object-fit: contain; object-position: center; width: 100%; }
+.portrait-frame { aspect-ratio: 3 / 4; background: #050608; border: 1px solid var(--ink); overflow: hidden; transform: rotate(2.5deg); }
+.portrait-frame img { display: block; height: auto; width: 100%; }
 .visual-note { background: var(--lime); border: 1px solid var(--ink); font-family: var(--mono); font-size: .72rem; padding: .8rem 1rem; position: absolute; text-transform: uppercase; z-index: 3; }
 .visual-note span { opacity: .5; padding-right: .8rem; }
 .note-top { right: -1.5rem; top: 12%; transform: rotate(-4deg); }
