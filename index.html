@@ -44,7 +44,7 @@
       <a href="#writing">Writing</a>
       <a href="#about">About</a>
     </nav>
-    <a class="header-cta" href="mailto:meycasim@gmail.com">Let's talk</a>
+    <a class="header-cta" href="#contact">Let's talk</a>
   </header>
 
   <main id="top">
@@ -131,9 +131,9 @@
         <a class="article-row" href="https://x.com/canbuilds" target="_blank" rel="noreferrer">
           <div><span class="article-type">Field notes</span><h3>Building AI apps in public</h3></div><p>Short lessons and working notes on X.</p><span class="article-arrow">↗</span>
         </a>
-        <div class="article-row article-soon">
-          <div><span class="article-type">Long-form · soon</span><h3>From AI capability to consumer habit</h3></div><p>A practical product framework.</p><span class="article-arrow">→</span>
-        </div>
+        <a class="article-row" href="articles/from-ai-capability-to-consumer-habit.html">
+          <div><span class="article-type">Long-form · 28 Aug 2026</span><h3>From AI capability to consumer habit</h3></div><p>A practical framework for useful, reliable AI consumer apps.</p><span class="article-arrow">→</span>
+        </a>
         <div class="article-row article-soon">
           <div><span class="article-type">Case study · soon</span><h3>The system behind a mobile launch</h3></div><p>Engineering, operations, and iteration.</p><span class="article-arrow">→</span>
         </div>
@@ -155,10 +155,36 @@
       </div>
     </section>
 
-    <section class="contact-section section-shell reveal">
-      <p class="eyebrow">Contact</p>
-      <h2>Building something<br>worth keeping?</h2>
-      <a class="contact-link" href="mailto:meycasim@gmail.com">meycasim@gmail.com <span>↗</span></a>
+    <section id="contact" class="contact-section section-shell reveal">
+      <div class="contact-heading">
+        <p class="eyebrow">Contact</p>
+        <h2>Building something<br>worth keeping?</h2>
+        <p>Tell me what you are working on, where you need help, and what a useful outcome would look like.</p>
+      </div>
+      <form id="contact-form" class="contact-form" action="https://formspree.io/f/mwlkkwnz" method="POST">
+        <div class="form-row">
+          <label for="contact-name">Name</label>
+          <input id="contact-name" name="name" type="text" autocomplete="name" required>
+        </div>
+        <div class="form-row">
+          <label for="contact-email">Email</label>
+          <input id="contact-email" name="email" type="email" autocomplete="email" required>
+        </div>
+        <div class="form-row">
+          <label for="contact-topic">What would you like to discuss?</label>
+          <input id="contact-topic" name="subject" type="text" required>
+        </div>
+        <div class="form-row">
+          <label for="contact-message">Message</label>
+          <textarea id="contact-message" name="message" rows="6" required></textarea>
+        </div>
+        <input class="form-honeypot" type="text" name="_gotcha" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <div class="form-footer">
+          <p class="form-privacy">Your details are used only to reply to your enquiry.</p>
+          <button class="form-submit" type="submit">Send message <span>↗</span></button>
+        </div>
+        <p id="form-status" class="form-status" role="status" aria-live="polite"></p>
+      </form>
     </section>
   </main>
 
