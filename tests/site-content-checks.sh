@@ -4,6 +4,13 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 article="$root/articles/from-ai-capability-to-consumer-habit.html"
 article_two="$root/articles/shipping-reliable-ai-features-in-consumer-mobile-apps.html"
+article_index="$root/articles/index.html"
+
+test -f "$article_index"
+grep -q '<link rel="canonical" href="https://asimcanyagiz.github.io/articles/">' "$article_index"
+grep -q 'From AI Capability to Consumer Habit' "$article_index"
+grep -q 'Shipping Reliable AI Features in Consumer Mobile Apps' "$article_index"
+grep -q '<loc>https://asimcanyagiz.github.io/articles/</loc>' "$root/sitemap.xml"
 
 test -f "$article"
 grep -q '<link rel="canonical" href="https://asimcanyagiz.github.io/articles/from-ai-capability-to-consumer-habit.html">' "$article"
