@@ -5,7 +5,7 @@ root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 article="$root/articles/from-ai-capability-to-consumer-habit.html"
 
 test -f "$article"
-grep -q '<link rel="canonical" href="https://asimcanyagiz.me/articles/from-ai-capability-to-consumer-habit.html">' "$article"
+grep -q '<link rel="canonical" href="https://asimcanyagiz.github.io/articles/from-ai-capability-to-consumer-habit.html">' "$article"
 grep -q '"@type": "Article"' "$article"
 grep -q 'From AI Capability to Consumer Habit' "$article"
 grep -q 'articles/from-ai-capability-to-consumer-habit.html' "$root/index.html"
@@ -26,6 +26,11 @@ grep -Eq '\.article-author[^}]*display: block' "$root/assets/css/article.css"
 
 if grep -Eqi 'mailto:|meycasim@gmail\.com' "$root/index.html"; then
   echo "direct email address found in public homepage" >&2
+  exit 1
+fi
+
+if rg -q 'asimcanyagiz\.me' "$root" --glob '*.html' --glob '*.xml' --glob '*.txt'; then
+  echo "unconfigured custom domain found in public metadata" >&2
   exit 1
 fi
 
