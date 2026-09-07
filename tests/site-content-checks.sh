@@ -7,13 +7,13 @@ article_two="$root/articles/shipping-reliable-ai-features-in-consumer-mobile-app
 article_index="$root/articles/index.html"
 
 test -f "$article_index"
-grep -q '<link rel="canonical" href="https://asimcanyagiz.github.io/articles/">' "$article_index"
+grep -q '<link rel="canonical" href="https://asimcanyagiz.me/articles/">' "$article_index"
 grep -q 'From AI Capability to Consumer Habit' "$article_index"
 grep -q 'Shipping Reliable AI Features in Consumer Mobile Apps' "$article_index"
-grep -q '<loc>https://asimcanyagiz.github.io/articles/</loc>' "$root/sitemap.xml"
+grep -q '<loc>https://asimcanyagiz.me/articles/</loc>' "$root/sitemap.xml"
 
 test -f "$article"
-grep -q '<link rel="canonical" href="https://asimcanyagiz.github.io/articles/from-ai-capability-to-consumer-habit.html">' "$article"
+grep -q '<link rel="canonical" href="https://asimcanyagiz.me/articles/from-ai-capability-to-consumer-habit.html">' "$article"
 grep -q '"@type": "Article"' "$article"
 grep -q 'From AI Capability to Consumer Habit' "$article"
 grep -q 'articles/from-ai-capability-to-consumer-habit.html' "$root/index.html"
@@ -21,7 +21,7 @@ test -f "$root/sitemap.xml"
 grep -q 'articles/from-ai-capability-to-consumer-habit.html' "$root/sitemap.xml"
 
 test -f "$article_two"
-grep -q '<link rel="canonical" href="https://asimcanyagiz.github.io/articles/shipping-reliable-ai-features-in-consumer-mobile-apps.html">' "$article_two"
+grep -q '<link rel="canonical" href="https://asimcanyagiz.me/articles/shipping-reliable-ai-features-in-consumer-mobile-apps.html">' "$article_two"
 grep -q '"@type": "Article"' "$article_two"
 grep -q 'Shipping Reliable AI Features in Consumer Mobile Apps' "$article_two"
 grep -q 'articles/shipping-reliable-ai-features-in-consumer-mobile-apps.html' "$root/index.html"
@@ -44,8 +44,12 @@ if grep -Eqi 'mailto:|meycasim@gmail\.com' "$root/index.html"; then
   exit 1
 fi
 
-if rg -q 'asimcanyagiz\.me' "$root" --glob '*.html' --glob '*.xml' --glob '*.txt'; then
-  echo "unconfigured custom domain found in public metadata" >&2
+# Migration guard: the site now lives on the custom domain asimcanyagiz.me.
+# Fail if the retired github.io domain ever reappears in public metadata.
+# Use grep -r (BSD/GNU) rather than rg so the check runs everywhere, not just
+# on machines that happen to have ripgrep installed.
+if grep -rq --include='*.html' --include='*.xml' --include='*.txt' 'asimcanyagiz\.github\.io' "$root"; then
+  echo "retired github.io domain found in public metadata" >&2
   exit 1
 fi
 
