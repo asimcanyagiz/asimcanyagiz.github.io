@@ -44,14 +44,30 @@ if grep -Eqi 'mailto:|meycasim@gmail\.com' "$root/index.html"; then
   exit 1
 fi
 
+# Positive checks: the core public metadata must point at the custom domain.
+# Guards against a wrong-but-not-github.io value (e.g. a typo'd .com) that the
+# negative guard below would not catch.
+grep -q '<meta property="og:url" content="https://asimcanyagiz.me/">' "$root/index.html"
+grep -q '<link rel="canonical" href="https://asimcanyagiz.me/">' "$root/index.html"
+grep -q 'Sitemap: https://asimcanyagiz.me/sitemap.xml' "$root/robots.txt"
+
 # Migration guard: the site now lives on the custom domain asimcanyagiz.me.
-# Fail if the retired github.io domain ever reappears in public metadata.
-# Use grep -r (BSD/GNU) rather than rg so the check runs everywhere, not just
-# on machines that happen to have ripgrep installed.
-if grep -rq --include='*.html' --include='*.xml' --include='*.txt' 'asimcanyagiz\.github\.io' "$root"; then
-  echo "retired github.io domain found in public metadata" >&2
-  exit 1
-fi
+# Fail if the retired github.io domain reappears in any public metadata file.
+# Check the known public files explicitly with plain `grep -q` — portable to
+# BSD, GNU and busybox grep alike (no --include flag), and it never recurses
+# into .git the way `grep -r "$root"` would.
+for public_file in \
+  "$root/index.html" \
+  "$article_index" \
+  "$article" \
+  "$article_two" \
+  "$root/sitemap.xml" \
+  "$root/robots.txt"; do
+  if grep -q 'asimcanyagiz\.github\.io' "$public_file"; then
+    echo "retired github.io domain found in public metadata: $public_file" >&2
+    exit 1
+  fi
+done
 
 if grep -Eqi '297[,\.]?859|294[,\.]?824|282[,\.]?145|revenue|income|salary|huseyinaliyagiz|fatmagul' "$article"; then
   echo "confidential or financial language found in public article" >&2
