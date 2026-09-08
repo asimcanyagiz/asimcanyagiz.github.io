@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Where the Model Runs: On-Device vs Cloud AI in Consumer Apps — Asım Can Yağız</title>
+  <meta name="description" content="A practical, provider-neutral framework for deciding, per request, whether a consumer-app AI feature should run on-device or in the cloud: privacy, latency, cost, offline and battery versus quality, with a hybrid architecture and graceful degradation.">
+  <meta name="author" content="Asım Can Yağız">
+  <meta name="theme-color" content="#0b0d10">
+  <meta property="og:title" content="Where the Model Runs: On-Device vs Cloud AI in Consumer Apps">
+  <meta property="og:description" content="For a mobile AI feature, the question is no longer which model, but where each request should run. A decision framework.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://asimcanyagiz.me/articles/where-the-model-runs-on-device-vs-cloud-ai.html">
+  <meta property="og:image" content="https://asimcanyagiz.me/assets/img/profile-img.jpg">
+  <meta property="article:published_time" content="2026-09-08">
+  <link rel="canonical" href="https://asimcanyagiz.me/articles/where-the-model-runs-on-device-vs-cloud-ai.html">
+  <link rel="icon" href="../assets/img/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <link rel="stylesheet" href="../assets/css/article.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Where the Model Runs: A Decision Framework for On-Device vs Cloud AI in Consumer Apps",
+    "description": "A provider-neutral framework for deciding, per request, whether a consumer-app AI feature should run on-device or in the cloud.",
+    "datePublished": "2026-09-08",
+    "dateModified": "2026-09-08",
+    "author": {"@type": "Person", "name": "Asım Can Yağız", "url": "https://asimcanyagiz.me/"},
+    "publisher": {"@type": "Person", "name": "Asım Can Yağız"},
+    "mainEntityOfPage": "https://asimcanyagiz.me/articles/where-the-model-runs-on-device-vs-cloud-ai.html"
+  }
+  </script>
+</head>
+<body>
+  <header class="site-header article-header">
+    <a class="wordmark" href="../index.html" aria-label="Asım Can Yağız home">ACY<span>.</span></a>
+    <nav aria-label="Article navigation"><a href="index.html">All writing</a></nav>
+    <a class="header-cta" href="https://x.com/canbuilds" target="_blank" rel="noreferrer">Build notes ↗</a>
+  </header>
+
+  <main>
+    <article>
+      <header class="article-hero">
+        <p class="eyebrow">Mobile engineering · Applied AI</p>
+        <h1>Where the <em>model</em> runs.</h1>
+        <p class="article-deck">Capable on-device models now ship alongside cloud APIs. So the architecture question for a mobile AI feature is no longer which model, but where each request should run — and that decision trades privacy, latency, cost, offline support and battery against quality.</p>
+        <div class="article-meta"><span>By Asım Can Yağız</span><span>8 September 2026</span><span>13 min read</span></div>
+      </header>
+
+      <div class="article-layout">
+        <aside class="article-aside">
+          <p class="aside-label">The framework</p>
+          <ol>
+            <li><a href="#operation">Start with the operation</a></li>
+            <li><a href="#matrix">A matrix with hard constraints</a></li>
+            <li><a href="#route">Resolve a route, not a brand</a></li>
+            <li><a href="#local">Make local a real service</a></li>
+            <li><a href="#cloud">Make cloud execution narrow</a></li>
+            <li><a href="#validation">Converge at validation</a></li>
+            <li><a href="#ux">Design UX around uncertainty</a></li>
+            <li><a href="#telemetry">Observe decisions, not users</a></li>
+          </ol>
+        </aside>
+
+        <div class="article-body">
+          <p class="lead">“On-device or cloud?” sounds like an infrastructure question you answer once, in a design doc, and forget. In a consumer app it is neither one-time nor abstract. It is a decision your code makes again on every request, under conditions it cannot fully predict.</p>
+          <p>Consider one user with three devices: a recent phone that already has a system model ready, a tablet that is eligible but still downloading the assets, and an older device that will never run the model at all. Now consider one feature that behaves differently depending on the request: rewriting a sentence is harmless and local, but estimating a price needs current external data. Network, battery, language support, subscription status, and consent can all change between the moment the app launches and the moment the user taps the button.</p>
+          <p>So a single compile-time answer is rarely enough. The question worth designing around is narrower and more useful: for this operation, on this device, at this moment, which route can satisfy the product’s promise without quietly changing its privacy, cost, or quality? This article is a framework for answering that, and for building the small amount of machinery that makes the answer safe.</p>
+
+          <h2 id="operation">Start with the operation, not the model</h2>
+          <p>“AI assistant” is a label that hides decisions which should stay separate. Break a feature into the operations it actually performs, and the routing choices become obvious. Four common ones:</p>
+          <ul>
+            <li>completing a category from the user’s recent history;</li>
+            <li>rewriting one short sentence while keeping its language;</li>
+            <li>grouping a batch of items into buckets the user already defined;</li>
+            <li>interpreting an image and, when needed, consulting live sources.</li>
+          </ul>
+          <p>The first may need no model at all — a rule can do it. The second is a good on-device candidate. The third fits either route depending on how much context it needs and how reliable the output must be. The fourth usually needs the cloud, but only <em>because</em> it requires live retrieval; plain image understanding is increasingly available on-device on newer hardware, so treat “needs vision” as device-dependent and “needs live data” as the durable reason to go remote.</p>
+          <p>Define the product-level contract once, and put the implementations behind it:</p>
+          <pre><code>protocol AssistantService: Sendable {
+    func rewrite(_ text: String) async throws -> String
+    func classify(_ items: [ItemBrief]) async throws -> [Suggestion]
+}
+
+struct ItemBrief: Sendable {
+    let id: UUID
+    let title: String
+    let currentGroup: String?
+}</code></pre>
+          <p>The input is a small, immutable, sendable snapshot — not an object owned by the view or the database. That one choice prevents a category of concurrency and lifecycle bugs, limits how much data can accidentally leak into a request, and lets both implementations be tested against the same fixtures. It also keeps routing out of the UI. A button should ask to rewrite text. It should not know how to build a vendor request or check whether the device’s model is ready.</p>
+
+          <h2 id="matrix">Decide with a matrix, and put hard constraints first</h2>
+          <p>There are seven practical dimensions. Some are preferences. Some are disqualifiers, and those have to be checked first.</p>
+          <p><strong>Capability.</strong> Can the route even do the job? A local text model cannot satisfy a need for live sources. A cloud text endpoint cannot interpret an image. Keep tool use, supported media, context size, structured-output support, and language coverage in an explicit capability record rather than scattering model-name checks through the code.</p>
+          <p><strong>Availability.</strong> On-device availability is not a boolean. It has states: the OS is too old, the hardware is ineligible, the user has turned intelligence off, the assets are not ready yet, the runtime is briefly busy, or it is available. Cloud availability has its own states: offline, not authenticated, rate-limited, or disabled. Keep those distinctions long enough to choose the right fallback and show the right message.</p>
+          <p><strong>Privacy and consent.</strong> Running locally can reduce how much data leaves the device, but it does not end your privacy work — inputs can still be logged, persisted, or backed up. A cloud route needs real data minimisation and, for free-form or sensitive content, a clear and revocable consent boundary. The rule that matters most: an automatic fallback must never turn “runs locally” into “uploads to a third party” without a policy the user actually accepted.</p>
+          <p><strong>Economics.</strong> On-device inference has no metered network call, but it spends memory, battery, and engineering time. Cloud inference has a visible marginal cost and may need subscription gating. Route by the operation’s cost class, not by whether the user is labelled premium — a free local path and a paid cloud fallback can sit behind the very same button.</p>
+          <p><strong>Latency and lifecycle.</strong> Short local work can feel instant once a session is warm; the first call, before that, may not. Cloud calls add network variance but run on far more devices. Either way, the work must be cancellable when the view goes away, and a late result must never overwrite a newer one.</p>
+          <p><strong>Quality and domain risk.</strong> An acceptable rewrite is a much lower bar than an acceptable extracted monetary amount. For higher-risk outputs, the route has to support enough validation, and often a human review step. “The cloud model is better” is not a contract; define what <em>valid</em> means for the domain.</p>
+          <p><strong>Consistency and operations.</strong> A system or bundled model can shift with platform updates and device settings; a cloud model can change at the provider’s edge. Cloud routes are easier to disable remotely. Local routes can keep working during a server incident — provided their entitlement and kill-switch checks are cached or fail open, rather than blocking on a server they can’t reach. Neither route escapes drift, so both need tests and version-aware telemetry.</p>
+          <div class="principle"><span>Principle 01</span><p>Hard constraints decide which routes are eligible. Preferences like cost and latency only choose among the ones that are left.</p></div>
+          <p>Evaluate the hard constraints before anything else. If the operation needs live retrieval, local is out. If there is no consent to upload, cloud is out. If the device model is not ready, local is out for an action that has to happen now. Only <em>after</em> the ineligible routes are removed do preferences like cost and latency decide between what’s left.</p>
+
+          <h2 id="route">Resolve a route, not a brand</h2>
+          <p>A resolver should return more than the string “local” or “cloud”. It should return a decision that carries its reason and the fallback it permits — and the fallback has to obey the same rules as a primary of the same kind:</p>
+          <pre><code>enum Route {
+    case deterministic
+    case local
+    case cloud(tier: Tier)
+}
+
+struct RouteDecision {
+    let primary: Route
+    let fallback: Route?
+    let reason: Reason
+    let uploadConsentRequired: Bool
+}
+
+func resolve(_ op: Operation, env: Environment) -> RouteDecision? {
+    if op.canUseRules, env.rulesCanAnswer {
+        return .init(primary: .deterministic, fallback: nil,
+                     reason: .localRuleMatched, uploadConsentRequired: false)
+    }
+
+    if op.localCapabilities.isSubset(of: env.localCapabilities), env.localReady {
+        // A cloud fallback is only offered when the cloud route is already
+        // allowed, paid for, and consented to — the same three checks the
+        // cloud-primary branch makes. Otherwise there is no fallback.
+        let cloudFallbackOK = env.cloudAllowed &amp;&amp; env.entitled &amp;&amp; env.uploadConsent
+        return .init(primary: .local,
+                     fallback: cloudFallbackOK ? .cloud(tier: .small) : nil,
+                     reason: .localCapable,
+                     uploadConsentRequired: false)
+    }
+
+    guard env.cloudAllowed, env.entitled, env.uploadConsent,
+          op.cloudCapabilities.isSubset(of: env.cloudCapabilities) else { return nil }
+    return .init(primary: .cloud(tier: op.cloudTier), fallback: nil,
+                 reason: .localUnavailable, uploadConsentRequired: true)
+}</code></pre>
+          <p>Two things about this. First, the local branch used to be where consent quietly leaked: it is tempting to attach a cloud fallback gated only on “is cloud allowed,” but that lets a local failure upload data the user never agreed to send. Gate the fallback on the full contract, and the decision object stops lying — <code>uploadConsentRequired</code> is only ever <code>false</code> when no route in the decision can upload. Second, this resolver encodes a deliberate <em>local-first preference</em> among eligible routes; that is a simplification of the matrix, not the whole matrix, and it’s worth saying so in the code review, not just the article.</p>
+          <p>In production, <code>cloudAllowed</code> should fold in a remote kill switch and backend admission, and <code>entitled</code> should not trust mutable client state alone. The decision’s <code>reason</code> is also what feeds privacy-safe telemetry and support later.</p>
+          <p>Give the user an explicit setting, too: automatic, on-device only, or cloud allowed — stored per device, because hardware capability differs across the devices one person owns. “On-device only” should disable or hide unsupported actions with a specific reason. It must never silently fall back to the cloud. “Automatic” may fall back, but only inside the consent and subscription contract above.</p>
+
+          <h2 id="local">Make local execution a real service</h2>
+          <p>On-device code is too often a convenience call embedded in a view, and that throws away most of its value. It should implement the same protocol as the cloud path and normalise its failures into domain categories: assets unavailable, context too large, safety guardrail, decoding failure.</p>
+          <p>A long-lived session avoids paying the warm-up cost on every call. But be precise about how you protect a stateful session. Putting it “behind an actor” is not, by itself, enough: Swift actors are reentrant, so while an actor serialises synchronous access to its state, an actor-isolated <code>async</code> method gives up its executor at every <code>await</code> — which means two operations can each reach the session across a suspension point. Many stateful session APIs reject exactly that, throwing if you start a new response while one is in flight. So enforce one-at-a-time explicitly: check an in-flight flag, feed a single serial consumer, or reject and defer overlapping calls. Isolation plus an explicit gate, not isolation alone.</p>
+          <p>The rest follows from treating the session as a queue you own. Don’t launch unbounded background work from the UI. Coalesce duplicate actions, cancel obsolete ones, and show progress for batches. When a response fails in a way that might have corrupted the session, discard the session so the next operation starts clean.</p>
+          <p>And local output is still untrusted. A model that wraps JSON in commentary still needs extraction and decoding. A rewrite should be trimmed, stripped of presentation quotes, rejected if empty, and treated as a no-op if it equals the original. A grouping result may reference only identifiers that were in the request.</p>
+          <p>One scoping note, because this framework invites it: the availability states above — especially “assets not ready” — describe the OS <em>system</em> model, whose download and readiness the platform manages for you. If you ship or download your <strong>own</strong> model, you own delivery: keep the model out of the base install, fetch it on opt-in to avoid bloating the first download and every update, and use your platform’s current on-demand asset mechanism. Confirm the exact mechanism against current platform docs before you rely on it; that part moves.</p>
+
+          <h2 id="cloud">Make cloud execution narrow</h2>
+          <p>The cloud adapter should receive only what the operation needs. A classification request can send identifiers, short titles, and a few examples from existing groups — not full records, attachments, or an account history. A conversation can send a bounded recent window instead of growing forever.</p>
+          <p>Credentials belong behind an authenticated proxy, never in the app binary. The proxy should validate input type, length, count, and media size; verify app attestation where the platform supports it; enforce rate and entitlement policy; and translate provider errors into a stable application error vocabulary.</p>
+          <p>Retries should be selective. One authentication refresh after an unauthenticated response is reasonable. Retrying every failure is not. And because a timeout can arrive <em>after</em> inference was already accepted and billed, use an idempotency key when repeating a request could duplicate a cost.</p>
+          <p>Finally, localise the error at the edge. A backend <code>resource_exhausted</code> becomes “try again later.” An offline state becomes a connectivity action. Malformed output becomes a safe no-change result or a review failure. Provider messages should not leak into the UI a customer reads.</p>
+
+          <h2 id="validation">Converge at the validation layer</h2>
+          <p>Local and cloud implementations don’t need identical prompts or APIs. They need equivalent domain behaviour. Once each route has produced decoded transport types, everything runs through one shared pipeline:</p>
+          <ol>
+            <li>Validate identifiers against the set that was submitted.</li>
+            <li>Normalise enum values, whitespace, dates, and currency codes.</li>
+            <li>Reject impossible numbers and unsafe links.</li>
+            <li>Convert the result into a proposal the user can review.</li>
+          </ol>
+          <p>(The extraction of a JSON region from prose, and the decode into transport types, are per-route pre-steps that feed this shared pipeline — do them before you converge, not after.)</p>
+          <p>This layer is what stops a route change from changing persistence semantics. If a cloud response names a group that doesn’t exist, or a local response drops an item, both resolve to “keep unchanged” — never to data invented from a guess.</p>
+          <p>For batch operations, preserve input order and emit exactly one decision per item in a response you actually received; a missing or malformed entry becomes an explicit keep. Chunk-level failures are a different level: if one chunk fails as a transport, keep the successful chunks and leave the failed chunk’s items pending for retry rather than marking them keep; if every chunk fails, report a service error. That distinction matters operationally — it avoids telling the user that everything was already correct during an outage.</p>
+
+          <h2 id="ux">Design the UX around uncertainty</h2>
+          <p>The interface should expose the outcome, not infrastructure trivia. “Preparing on this device” is useful. A vendor-specific error string is not. And when routing is automatic, users deserve to know when their data will leave the device — especially if they chose the feature <em>because</em> it was described as local.</p>
+          <p>Route AI-generated changes through a review surface: a before/after diff, a selectable plan, an editable extraction. Save only what the user accepts. This keeps the user as the authority and, as a bonus, gives every route the same failure behaviour — the original stays intact no matter what.</p>
+          <p>Lifecycle handling is part of correctness, not polish. Store the in-flight task, cancel it when the sheet disappears, and cancel it before starting a replacement. Cooperative cancellation isn’t enough on its own, so compare a generation token before applying any result:</p>
+          <pre><code>generation += 1
+let mine = generation
+work?.cancel()
+work = Task {
+    do {
+        let proposal = try await service.classify(snapshot)
+        try Task.checkCancellation()
+        guard mine == generation else { return }
+        state = .review(validate(proposal, against: snapshot))
+    } catch is CancellationError {
+        // expected on replacement — do nothing
+    } catch {
+        guard mine == generation else { return }
+        state = .failed(localize(error))
+    }
+}</code></pre>
+          <p>This matters most when a user switches modes while a slower route is still running: only the result whose generation still matches is allowed to update the screen, and a failure is surfaced instead of vanishing into a spinner. (This assumes the state is touched from a single isolation context, e.g. the main actor.)</p>
+
+          <h2 id="telemetry">Observe decisions without observing users</h2>
+          <p>Record the operation, the route, the decision reason, the availability state, a duration bucket, the validation outcome, and an error class. Do not record raw prompts, image contents, account text, or model output. An allow-list for analytics properties is safer than hoping everyone remembers what not to log, and free-text diagnostic fields should be redacted before upload.</p>
+          <p>Route telemetry answers concrete questions. How often is the local model unavailable? How often does automatic mode cross over to cloud? Does one language produce more validation failures? Do users abandon during model preparation? These are diagnostic questions, not performance claims — measure them in the deployed environment before you change policy.</p>
+
+          <h2>Executable scenarios</h2>
+          <p>Write these as tests and adapt them to your own domain.</p>
+          <p><strong>Automatic mode respects local capability.</strong> <em>Given</em> a short rewrite, a ready on-device model, and no need for external data, <em>when</em> the resolver runs, <em>then</em> it picks the local service and never even evaluates cloud entitlement.</p>
+          <p><strong>Local-only means no upload.</strong> <em>Given</em> the user chose on-device-only mode and the model assets are unavailable, <em>when</em> a classification is requested, <em>then</em> the app reports that local capability is unavailable and makes no cloud request.</p>
+          <p><strong>Automatic fallback requires consent.</strong> <em>Given</em> local execution fails with a recoverable error and cloud is technically available, <em>when</em> upload consent has not been granted, <em>then</em> the app asks for consent or stops — it does not silently transmit the input.</p>
+          <p><strong>Both routes enforce identifier membership.</strong> <em>Given</em> either implementation returns a suggestion referencing an identifier absent from the request, <em>when</em> the validator processes it, <em>then</em> that suggestion becomes “keep unchanged” and cannot reach persistence.</p>
+          <p><strong>A late result cannot replace a newer one.</strong> <em>Given</em> request A is running and the user switches mode, starting request B, <em>when</em> B completes first and A completes later, <em>then</em> only B’s matching generation may update the review state.</p>
+
+          <h2>When this is not worth it</h2>
+          <p>A runtime router is overkill when a feature has one safe execution environment, low device heterogeneity, low volume, and no meaningful difference in privacy, capability, or marginal cost. A simple provider-neutral protocol with a single implementation is enough. Don’t add a local model just to claim “offline AI” if deterministic logic solves the task more reliably.</p>
+          <p>Hybrid execution earns its keep when device eligibility is genuinely mixed, cloud cost is material, upload consent matters, or different operations need different capabilities. At that point the router is not abstraction for its own sake. It is the place where the product makes its promises explicit — because where a request runs is a product decision, as much as which model runs it.</p>
+
+          <footer class="article-author">
+            <p class="eyebrow">About the author</p>
+            <h2>Asım Can Yağız</h2>
+            <p>Founder of App Skies. I build AI-powered consumer mobile products and the engineering, growth, and operating systems behind them.</p>
+            <div><a href="https://x.com/canbuilds" target="_blank" rel="noreferrer">X ↗</a><a href="https://www.linkedin.com/in/asimcanyagiz/" target="_blank" rel="noreferrer">LinkedIn ↗</a><a href="https://github.com/asimcanyagiz" target="_blank" rel="noreferrer">GitHub ↗</a></div>
+          </footer>
+        </div>
+      </div>
+    </article>
+  </main>
+  <footer><p>© 2026 Asım Can Yağız</p><p><a href="../index.html">Back home ↑</a></p></footer>
+</body>
+</html>
